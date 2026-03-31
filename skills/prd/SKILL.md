@@ -15,9 +15,28 @@ description: >
 This skill produces two kinds of artifacts:
 
 1. **PRDs** — markdown documents that define what to build and why.
-2. **User story files** — JSON files that decompose a PRD into implementation-ready work items.
+2. **User story files** — JSON files that decompose a PRD into outcome-focused, implementation-sequenced work items.
 
 There are two PRD modes and one story mode. Identify which the user needs from context, or ask if ambiguous.
+
+## Core Boundary
+
+PRDs and stories define **what must be true**, **why it matters**, and **what constraints apply**. They do **not** prescribe the exact internal implementation unless the user explicitly asks for that level of detail or the codebase has a mandatory integration point that must be named.
+
+Stay focused on:
+
+- Product behavior, user value, scope boundaries, and success criteria
+- High-level technical design, architecture impact, data flow, and external interfaces
+- Constraints the implementor must respect
+
+Avoid over-specifying:
+
+- Exact file names to create or modify
+- Class names, function names, or method signatures
+- Step-by-step coding plans
+- Internal refactors described at the level of source edits rather than design intent
+
+The implementor should explore the current codebase, understand existing patterns, and choose the best technical implementation. The PRD and stories should preserve that freedom.
 
 ## Choosing the Right Mode
 
@@ -70,14 +89,15 @@ Primary, secondary, and tertiary user segments. Who benefits and how.
 
 ## 3. Architecture Overview
 High-level system design. ASCII diagrams showing component relationships,
-data flow, and integration points. Include phase boundaries if the system
-ships incrementally (e.g., MVP vs Phase 2).
+data flow, trust boundaries, and integration points. Include phase
+boundaries if the system ships incrementally (e.g., MVP vs Phase 2).
 
 ## 4. Feature Set / Functional Requirements
 Detailed specification of each feature. For each:
 - Purpose and behavior
-- Configuration (with YAML/JSON examples where relevant)
-- Interfaces (internal APIs, schemas, data models)
+- User-visible flows and system outcomes
+- Configuration or external/API contracts when relevant
+- Data models or schemas when they are part of the product contract
 - Edge cases and limitations
 - Phase/scope notes (MVP vs future)
 
@@ -104,15 +124,17 @@ not todos — each should explain the tradeoff being considered.
 **Architecture diagrams:** Use ASCII art for system architecture, data flow, and component relationships. These should show how components connect, where trust boundaries exist, and how data moves through the system. Keep them readable — if a diagram needs more than ~30 lines, split it into multiple diagrams.
 
 **Feature specifications:** Each feature should be concrete enough that an engineer can implement it without asking clarifying questions about behavior. Include:
-- Configuration examples (YAML, JSON, or code snippets)
-- Data models and schemas (SQL CREATE TABLE, Python dataclasses, or similar)
-- Interface contracts (function signatures, API shapes)
+- Configuration examples when configuration is part of the product surface
+- Data models and schemas when they are part of the product contract
+- External/API contracts and payload shapes when relevant
 - Decision matrices (tables showing behavior under different conditions)
-- Concrete CLI invocations or usage examples
+- Concrete usage examples
+
+Prefer module boundaries, responsibilities, and integration points over file-by-file or function-by-function prescriptions. Only name exact files, classes, or functions when the codebase already exposes a required extension point and ambiguity would cause the implementor to wire it incorrectly.
 
 **Tables:** Use tables for decision matrices, CLI parameter references, comparison of options, and any structured data that would be harder to parse in prose.
 
-**Code blocks:** Use code blocks for configuration files, schemas, interfaces, project structure trees, CLI examples, and architecture diagrams.
+**Code blocks:** Use code blocks for configuration files, schemas, API payloads, project structure trees, CLI examples, and architecture diagrams. Avoid using code blocks to sketch internal implementation unless the user explicitly wants design-level pseudocode.
 
 **Scope boundaries:** Explicitly state what is out of scope. Group deferred work into phases (Phase 2, Phase 3, Future) when multiple items are deferred.
 
@@ -168,16 +190,17 @@ marked with *(New)*.
 
 ## 2. Architecture / Data Model
 Only if this release introduces new architectural concepts. Describe the new
-abstractions, data models, or structural changes. Show before/after if
-refactoring existing code.
+abstractions, data models, integration points, or structural changes. Show
+conceptual before/after when changing existing behavior.
 
 ## 3. Functional Requirements
 Detailed specification of each new feature or change. Same depth as
 comprehensive mode but scoped to what's new or changing.
 
-## 4. Refactor Details
-If existing code needs restructuring. Show before/after code patterns,
-explain what changes and what doesn't.
+## 4. Design / Refactor Impact
+If existing code needs restructuring, explain the design intent, affected
+areas, and what changes semantically versus what stays stable. Keep this at
+the module, boundary, or workflow level rather than prescribing edits.
 
 ## 5. CLI / API Changes
 New flags, parameters, or endpoints. Table format with type, default,
@@ -195,7 +218,7 @@ Each story follows the format described in the Story Decomposition section.
 
 **"Builds on" header:** Always reference the baseline the reader should know. Include a parenthetical describing the current state in a few words.
 
-**New vs. changed:** Clearly distinguish between entirely new functionality and changes to existing behavior. When modifying existing behavior, show before/after where possible (code patterns, CLI invocations, data models).
+**New vs. changed:** Clearly distinguish between entirely new functionality and changes to existing behavior. When modifying existing behavior, show before/after in terms of user flows, API behavior, CLI behavior, or data contracts.
 
 **Technical stack:** Only include a technical stack section if this release introduces new dependencies or architectural components. If the stack is unchanged, omit it. If a few new tools are added, mention them inline within the relevant feature section rather than creating a dedicated section.
 
@@ -203,13 +226,13 @@ Each story follows the format described in the Story Decomposition section.
 
 **Cross-references:** Reference the existing PRD or codebase for context the reader needs. Don't repeat what's already documented — point to it.
 
-**User stories:** Focused PRDs may include user stories inline. When included, they follow the same format and guidelines as the Story Decomposition mode's output. This is appropriate when the release scope is clear and the stories naturally emerge from the requirements. If the scope is large or exploratory, omit inline stories and let the user decompose separately.
+**User stories:** Focused PRDs may include user stories inline. When included, they follow the same format and guidelines as the Story Decomposition mode's output. Keep them outcome-oriented: what capability gets added, what constraint matters, and how completion is verified. Do not turn them into coding checklists. If the scope is large or exploratory, omit inline stories and let the user decompose separately.
 
 ---
 
 ## Mode 3: Story Decomposition
 
-Convert a PRD into an implementation-ready `stories.json` file. This mode can be triggered in two ways:
+Convert a PRD into a `stories.json` file of outcome-focused implementation slices. This mode can be triggered in two ways:
 
 1. **After writing a focused PRD** — automatically offer to decompose the PRD into stories once it is complete. The user may accept or decline.
 2. **Standalone** — the user provides an existing PRD (as a file path or pasted content) and asks for story decomposition directly. This is a first-class entry point, not just a follow-up to PRD writing.
@@ -217,8 +240,8 @@ Convert a PRD into an implementation-ready `stories.json` file. This mode can be
 ### Process
 
 1. Read the PRD thoroughly.
-2. If the PRD already contains user stories (common in focused PRDs), extract and reformat them to match the JSON schema. Refine acceptance criteria for verifiability, adjust sizing, and fix dependency ordering.
-3. If the PRD does not contain user stories, analyze the requirements and formulate stories from scratch. Think through the implementation order, identify natural boundaries, and create stories that are each completable in one iteration.
+2. If the PRD already contains user stories (common in focused PRDs), extract and reformat them to match the JSON schema. Refine acceptance criteria for verifiability, adjust sizing, remove unnecessary implementation prescription, and fix dependency ordering.
+3. If the PRD does not contain user stories, analyze the requirements and formulate stories from scratch. Think through the implementation order, identify natural boundaries, and create stories that are each completable in one iteration without dictating the exact source-level solution.
 4. Write the output to the specified path (default: `stories.json` next to the PRD).
 
 ### Output Format
@@ -250,17 +273,19 @@ Convert a PRD into an implementation-ready `stories.json` file. This mode can be
 
 Each story must be completable in one iteration (one context window). This is the most important rule.
 
+Each story should describe a coherent outcome, not a coding recipe. The implementor should still need to inspect the codebase and decide how to realize the story cleanly.
+
 **Right-sized examples:**
-- Add a database column and migration
-- Implement an abstract base class with interface methods
-- Add a CLI flag with validation
-- Write a prompt template for a single stage
-- Add a utility function with tests
+- Persist user notification preferences
+- Add a configurable retry option to the CLI
+- Support one additional prompt stage in the workflow
+- Expose a new API field required by the UI
+- Verify the end-to-end flow for a single integration path
 
 **Too big (split these):**
-- "Build the entire dashboard" — split into: schema, queries, UI components, filters
-- "Add authentication" — split into: schema, middleware, login UI, session handling
-- "Implement the full pipeline" — split into: one story per stage or component
+- "Build the entire dashboard" — split into: data exposure, primary view, filtering, verification
+- "Add authentication" — split into: sign-in flow, session behavior, protected access, verification
+- "Implement the full pipeline" — split into: one story per meaningful stage or user-visible capability
 
 **Rule of thumb:** If you cannot describe the change in 2-3 sentences, it is too big.
 
@@ -269,20 +294,23 @@ Each story must be completable in one iteration (one context window). This is th
 Stories execute in priority order. Earlier stories must not depend on later ones.
 
 **Correct ordering pattern:**
-1. Data models, schemas, abstractions (foundation)
-2. Core logic, engines, utilities (building blocks)
-3. Integration, orchestration (connecting pieces)
-4. CLI, API surface (user-facing)
-5. End-to-end tests (verification)
+1. Foundational contracts or data changes
+2. Core behavior needed by later slices
+3. Integration and orchestration
+4. User-facing surfaces
+5. End-to-end verification
 
 ### Acceptance Criteria
 
 Every criterion must be objectively verifiable — something you can CHECK, not something vague.
 
+Acceptance criteria should describe observable behavior, contracts, and constraints. Avoid naming exact files, classes, or functions unless the codebase already has a mandatory integration point that must be used.
+
 **Good (verifiable):**
-- "`src/app/models.py` exports a `User` dataclass with fields: `id`, `name`, `email`"
-- "`get_engine('claude-code')` returns a `ClaudeCodeEngine` instance"
+- "A user can save notification preferences and see them persist after reload"
 - "Running `app --help` displays the `--verbose` flag with description"
+- "The API returns the new `retryPolicy` field when workflow settings are requested"
+- "Invalid provider configuration is rejected with a descriptive error message"
 - "Tests pass"
 
 **Bad (vague):**
@@ -290,6 +318,11 @@ Every criterion must be objectively verifiable — something you can CHECK, not 
 - "Handles edge cases"
 - "Good performance"
 - "Clean code"
+
+**Too implementation-specific (avoid by default):**
+- "`src/app/models.py` exports a `User` dataclass with fields: `id`, `name`, `email`"
+- "`get_engine('claude-code')` returns a `ClaudeCodeEngine` instance"
+- "Create `foo.ts` with `buildFoo()` helper"
 
 For stories with testable logic, include the exact string `"Tests pass"` as the final acceptance criterion. Do not rephrase it (e.g., "Tests verify X" or "Unit tests cover Y") — those are separate criteria. `"Tests pass"` is a universal gate that confirms all tests still pass after the story is implemented.
 
@@ -308,6 +341,8 @@ For stories with testable logic, include the exact string `"Tests pass"` as the 
 These apply across all modes.
 
 **Be concrete, not abstract.** Show configuration examples, CLI invocations, data schemas, and interface contracts. A PRD that says "the system should handle authentication" is useless. A PRD that shows the auth flow, the session schema, the config format, and the CLI flags is actionable.
+
+**Be concrete about outcomes, not source edits.** Good PRDs make behavior and constraints unambiguous while leaving room for the implementor to discover the right files, abstractions, and control flow in the existing codebase.
 
 **Tables over prose for structured data.** CLI parameters, feature matrices, decision logic, and comparisons are always clearer as tables.
 

@@ -1,6 +1,8 @@
 # ai-dev-toolkit
 
-Personal Claude Code configuration and skills. The root `CLAUDE.md` contains global coding preferences and tooling rules that apply across all projects.
+Personal Claude Code and OpenAI Codex configuration and skills. 
+
+The root `CLAUDE.md` (and the symbolic link `AGENTS.md`) contains global coding preferences and tooling rules that apply across all projects.
 
 ## Skills
 

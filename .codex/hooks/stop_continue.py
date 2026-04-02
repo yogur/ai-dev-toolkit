@@ -14,7 +14,6 @@ STORIES_PATH = Path("tasks/stories.json")
 @dataclass(frozen=True)
 class StopPayload:
     cwd: Path
-    stop_hook_active: bool
     last_assistant_message: str
 
 
@@ -23,7 +22,6 @@ def load_payload() -> StopPayload:
     cwd = Path(raw_payload["cwd"]).resolve()
     return StopPayload(
         cwd=cwd,
-        stop_hook_active=bool(raw_payload.get("stop_hook_active", False)),
         last_assistant_message=str(raw_payload.get("last_assistant_message") or ""),
     )
 
@@ -51,7 +49,13 @@ def read_stories(stories_path: Path) -> list[dict]:
     if isinstance(data, list):
         stories = data
     elif isinstance(data, dict):
-        stories = data.get("stories", [])
+        for key in ("userStories", "stories", "items"):
+            value = data.get(key)
+            if isinstance(value, list):
+                stories = value
+                break
+        else:
+            stories = []
     else:
         stories = []
 
@@ -80,7 +84,11 @@ def next_unfinished_story_id(stories_path: Path) -> str | None:
 
 
 def has_completion_promise(message: str) -> bool:
-    return any(line.strip() == COMPLETION_PROMISE for line in message.splitlines())
+    for line in reversed(message.splitlines()):
+        stripped = line.strip()
+        if stripped:
+            return stripped == COMPLETION_PROMISE
+    return False
 
 
 def build_prompt(next_story: str) -> str:
@@ -89,9 +97,6 @@ def build_prompt(next_story: str) -> str:
 
 def main() -> int:
     payload = load_payload()
-    if payload.stop_hook_active:
-        return 0
-
     repo_root = detect_repo_root(payload.cwd)
     if repo_root is None:
         return 0

@@ -53,12 +53,12 @@ Make the changes needed to satisfy all acceptance criteria. Keep changes focused
 
 Run whatever checks the project requires (typecheck, lint, test). Fix any failures before continuing.
 
-### 5. Update CLAUDE.md
+### 5. Update AGENTS.md
 
-Before proposing a commit, check whether your changes contain learnings worth preserving in the `CLAUDE.md` file:
+Before proposing a commit, check whether your changes contain learnings worth preserving in the `AGENTS.md` file:
 
 1. **Identify directories with edited files** — look at which directories you modified.
-2. **Check the root `CLAUDE.md`** — this is where project-wide conventions live by default.
+2. **Check the root `AGENTS.md`** — this is where project-wide conventions live by default.
 3. **Add valuable learnings** — if you discovered something future developers/agents should know:
    - API patterns or conventions specific to that module
    - Gotchas or non-obvious requirements
@@ -77,7 +77,7 @@ Do **not** add:
 - Temporary debugging notes
 - Information already in `tasks/progress.txt`
 
-Only update `CLAUDE.md` if you have genuinely reusable knowledge that would help future work in that directory.
+Only update `AGENTS.md` if you have genuinely reusable knowledge that would help future work in that directory.
 
 ### 6. Propose a commit message
 

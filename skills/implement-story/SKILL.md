@@ -81,7 +81,7 @@ Only update `CLAUDE.md` if you have genuinely reusable knowledge that would help
 
 ### 6. Propose a commit message
 
-If all quality checks pass, write a commit message and present it to the user. **Do not commit** — just propose the message.
+If all quality checks pass, write a commit message and present it to the user. **Do not commit unless explicitly instructed by the user.**
 
 The commit message should:
 - Be detailed enough to understand what changed and why

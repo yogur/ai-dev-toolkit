@@ -1,0 +1,4 @@
+interface:
+  display_name: "Story Loop"
+  short_description: "Interactive story-by-story implementation loop"
+  default_prompt: "Use $story-loop to implement story US-001 in the interactive hook-driven loop."

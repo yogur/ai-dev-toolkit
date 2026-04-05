@@ -11,6 +11,7 @@ The `templates/AGENTS.md` file contains global coding preferences and tooling ru
 | `prd` | Create Product Requirements Documents (comprehensive or focused) and decompose them into a `stories.json` file of implementation-ready user stories. |
 | `implement-story` | Implement a single user story end-to-end: reads requirements from `tasks/stories.json`, writes code, runs quality checks, and proposes a commit unless the user explicitly asks it to commit. |
 | `story-loop` | Thin wrapper around `implement-story` for interactive, hook-driven story-by-story execution. It commits on success and ends with a story-ID-aware completion promise consumed by the Stop hook. |
+| `sprint-checkpoint` | Review a completed sprint against the PRD, stories, progress log, and relevant code, then write `tasks/checkpoint-sprint-N.md` for operator review. |
 | `doc-coauthoring` | Structured three-stage workflow for co-authoring docs (context gathering → refinement → reader testing). Copied as-is from [Anthropic's skills repo](https://github.com/anthropics/skills). |
 
 ## Interactive Story Loop

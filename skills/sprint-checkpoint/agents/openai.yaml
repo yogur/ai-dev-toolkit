@@ -1,0 +1,4 @@
+interface:
+  display_name: "Sprint Checkpoint"
+  short_description: "Sprint review and checkpoint reports"
+  default_prompt: "Use $sprint-checkpoint to review Sprint 2 and write tasks/checkpoint-sprint-2.md."

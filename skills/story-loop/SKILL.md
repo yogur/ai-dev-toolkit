@@ -25,10 +25,11 @@ In addition to the `implement-story` workflow:
 1. Treat invocation of `story-loop` as explicit user instruction to create a git commit once the
    story is complete and all required quality checks are passing.
 2. Create exactly one focused commit for the completed story.
-3. End your final response with this exact line and nothing after it:
+3. End your final response with this exact line and nothing after it, replacing `<story-id>` with
+   the exact story identifier you were asked to implement:
 
 ```text
-<promise>STORY_COMPLETE</promise>
+<promise>{"type":"STORY_COMPLETE","storyId":"<story-id>"}</promise>
 ```
 
 ## Guardrails
@@ -37,5 +38,6 @@ In addition to the `implement-story` workflow:
 - Do not emit the completion promise unless the story is complete according to `implement-story`,
   `tasks/stories.json` has been updated, `tasks/progress.txt` has been appended, and the commit has
   succeeded.
+- Preserve the story identifier exactly as provided. Do not assume a `US-###` format.
 - If you are blocked, need user input, or cannot complete the commit safely, stop normally and do
   not emit the completion promise.

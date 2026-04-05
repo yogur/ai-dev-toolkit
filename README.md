@@ -2,7 +2,7 @@
 
 Personal Claude Code and OpenAI Codex configuration and skills.
 
-The root `AGENTS.md` contains global coding preferences and tooling rules that apply across all projects. `CLAUDE.md` is setup as a symbolic link for Claude Code.
+The `templates/AGENTS.md` file contains global coding preferences and tooling rules that apply across all projects. `templates/CLAUDE.md` is setup as a symbolic link for Claude Code.
 
 ## Skills
 

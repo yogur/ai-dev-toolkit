@@ -1,13 +1,13 @@
 ---
 name: prd
 description: >
-  Create and manage Product Requirements Documents (PRDs) and decompose them into user stories.
-  Use this skill when the user wants to: write a PRD for a new project, draft requirements for a
-  new release or feature, break down a PRD into user stories, or convert requirements into a
-  stories.json file. Trigger on mentions of PRD, product requirements, user stories, acceptance
-  criteria, feature specs, release planning, or story decomposition — even if the user doesn't
-  use the exact term "PRD" (e.g., "spec out this feature", "write up requirements", "plan the
-  next release", "break this into stories").
+  Create and manage Product Requirements Documents (PRDs) and decompose them into sprint-aware
+  user stories. Use this skill when the user wants to: write a PRD for a new project, draft
+  requirements for a new release or feature, break down a PRD into user stories, or convert
+  requirements into a stories.json file. Trigger on mentions of PRD, product requirements, user
+  stories, acceptance criteria, feature specs, release planning, or story decomposition — even if
+  the user doesn't use the exact term "PRD" (e.g., "spec out this feature", "write up
+  requirements", "plan the next release", "break this into stories").
 ---
 
 # PRD Skill
@@ -241,7 +241,7 @@ Convert a PRD into a `stories.json` file of outcome-focused implementation slice
 
 1. Read the PRD thoroughly.
 2. If the PRD already contains user stories (common in focused PRDs), extract and reformat them to match the JSON schema. Refine acceptance criteria for verifiability, adjust sizing, remove unnecessary implementation prescription, and fix dependency ordering.
-3. If the PRD does not contain user stories, analyze the requirements and formulate stories from scratch. Think through the implementation order, identify natural boundaries, and create stories that are each completable in one iteration without dictating the exact source-level solution.
+3. If the PRD does not contain user stories, analyze the requirements and formulate stories from scratch. Think through the implementation order, identify natural boundaries, assign each story to a sprint, and create stories that are each completable in one iteration without dictating the exact source-level solution.
 4. Write the output to the specified path (default: `stories.json` next to the PRD).
 
 ### Output Format
@@ -251,6 +251,9 @@ Convert a PRD into a `stories.json` file of outcome-focused implementation slice
   "project": "<project name and version/release>",
   "branchName": "<suggested git branch name>",
   "description": "<one-line description of what this set of stories delivers>",
+  "sprintConfig": {
+    "checkpointEnabled": true
+  },
   "userStories": [
     {
       "id": "US-001",
@@ -261,6 +264,7 @@ Convert a PRD into a `stories.json` file of outcome-focused implementation slice
         "Concrete, verifiable criterion 2",
         "Tests pass"
       ],
+      "sprint": 1,
       "priority": 1,
       "passes": false,
       "notes": ""
@@ -268,6 +272,19 @@ Convert a PRD into a `stories.json` file of outcome-focused implementation slice
   ]
 }
 ```
+
+`sprintConfig` is optional. When the PRD or user context does not call for sprint checkpoints, it may be omitted entirely without making the story file invalid. Every generated story should still include the existing fields plus a positive integer `sprint`.
+
+### Sprint Assignment
+
+Assign sprints as part of decomposition rather than as a separate follow-up step unless the user explicitly asks for a two-step workflow.
+
+- Sprint 1 should contain 2-3 foundational stories such as data contracts, core abstractions, or configuration changes.
+- Later sprints should usually contain 3-5 stories grouped by dependency cluster and delivered capability.
+- The final sprint should include any end-to-end integration, verification, or release-readiness stories.
+- Adjust sprint sizes when the project shape warrants it. Infrastructure-heavy work may need smaller sprints; straightforward feature work may support larger ones.
+- Keep sprint boundaries cohesive. Stories in the same sprint should make sense to review together at a checkpoint.
+- If the project is too small to justify many sprints, prefer fewer sprints over artificial splitting.
 
 ### Story Sizing
 
@@ -299,6 +316,8 @@ Stories execute in priority order. Earlier stories must not depend on later ones
 3. Integration and orchestration
 4. User-facing surfaces
 5. End-to-end verification
+
+Within that ordering, assign sprint numbers so the earliest foundational stories stay in Sprint 1, dependent work follows in later sprints, and the final sprint contains integration or verification slices. Sprint numbers must increase only when the dependency cluster changes or the review boundary is meaningful.
 
 ### Acceptance Criteria
 

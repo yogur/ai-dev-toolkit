@@ -1,0 +1,4 @@
+interface:
+  display_name: "PRD"
+  short_description: "PRDs and sprint-aware story files"
+  default_prompt: "Use $prd to decompose tasks/example-prd.md into sprint-aware stories.json output."

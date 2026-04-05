@@ -35,6 +35,46 @@ def write_stories(repo_root: Path, payload: dict) -> None:
     (tasks_dir / "stories.json").write_text(json.dumps(payload, indent=2) + "\n")
 
 
+def read_stories(repo_root: Path) -> dict:
+    return json.loads((repo_root / "tasks" / "stories.json").read_text())
+
+
+def mark_story_passed(repo_root: Path, story_id: str) -> None:
+    payload = read_stories(repo_root)
+    stories = payload.get("userStories", payload if isinstance(payload, list) else [])
+    for story in stories:
+        if story.get("id") == story_id:
+            story["passes"] = True
+            break
+    else:
+        raise AssertionError(f"Story {story_id} not found in fixture")
+
+    write_stories(repo_root, payload)
+
+
+def run_hook(repo_root: Path, story_id: str) -> str | None:
+    result = subprocess.run(
+        [sys.executable, str(MODULE_PATH)],
+        input=json.dumps(
+            {
+                "cwd": str(repo_root),
+                "last_assistant_message": (
+                    f'<promise>{{"type":"STORY_COMPLETE","storyId":"{story_id}"}}</promise>'
+                ),
+            }
+        ),
+        capture_output=True,
+        text=True,
+        check=True,
+    )
+
+    if not result.stdout.strip():
+        return None
+
+    payload = json.loads(result.stdout)
+    return payload["reason"]
+
+
 class StopContinueTests(unittest.TestCase):
     maxDiff = None
 
@@ -160,6 +200,48 @@ class StopContinueTests(unittest.TestCase):
                 {"decision": "block", "reason": "$sprint-checkpoint 1"},
             )
             self.assertEqual(result.stderr, "")
+
+    def test_sprinted_flow_crosses_checkpoint_then_manual_resume(self) -> None:
+        with tempfile_repo() as repo_root:
+            write_stories(
+                repo_root,
+                {
+                    "sprintConfig": {"checkpointEnabled": True},
+                    "userStories": [
+                        {"id": "story-a", "passes": False, "sprint": 1, "priority": 1},
+                        {"id": "story-b", "passes": False, "sprint": 2, "priority": 2},
+                        {"id": "story-c", "passes": False, "sprint": 2, "priority": 3},
+                    ],
+                },
+            )
+
+            mark_story_passed(repo_root, "story-a")
+            self.assertEqual(run_hook(repo_root, "story-a"), "$sprint-checkpoint 1")
+
+            # The operator manually resumes into sprint 2 by invoking story-b.
+            mark_story_passed(repo_root, "story-b")
+            self.assertEqual(run_hook(repo_root, "story-b"), "$story-loop story-c")
+
+            mark_story_passed(repo_root, "story-c")
+            self.assertIsNone(run_hook(repo_root, "story-c"))
+
+    def test_non_sprinted_flow_continues_sequentially(self) -> None:
+        with tempfile_repo() as repo_root:
+            write_stories(
+                repo_root,
+                {
+                    "userStories": [
+                        {"id": "story-a", "passes": False, "priority": 1},
+                        {"id": "story-b", "passes": False, "priority": 2},
+                    ]
+                },
+            )
+
+            mark_story_passed(repo_root, "story-a")
+            self.assertEqual(run_hook(repo_root, "story-a"), "$story-loop story-b")
+
+            mark_story_passed(repo_root, "story-b")
+            self.assertIsNone(run_hook(repo_root, "story-b"))
 
     def assert_decision(
         self,

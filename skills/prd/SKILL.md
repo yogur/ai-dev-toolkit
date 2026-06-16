@@ -117,6 +117,11 @@ Measurable targets that define whether the project achieved its goals.
 ## 9. Open Questions
 Unresolved decisions with context about each. These are genuine unknowns,
 not todos — each should explain the tradeoff being considered.
+
+## 10. Key Decisions and Rejected Alternatives
+Settled choices where a reasonable alternative existed, as a table:
+Decision | Chosen | Rejected alternative(s) | Why (plus any fallback).
+The resolved counterpart to Open Questions. Omit if there were no real forks.
 ```
 
 ### Content Guidelines
@@ -209,7 +214,12 @@ and description.
 ## 6. Open Questions
 Same format as comprehensive mode.
 
-## 7. User Stories
+## 7. Key Decisions and Rejected Alternatives
+Settled choices where a reasonable alternative existed (table: Decision |
+Chosen | Rejected alternative(s) | Why, plus any fallback). The resolved
+counterpart to Open Questions. Omit if there were no real forks.
+
+## 8. User Stories
 Inline user stories when the release scope is well-defined enough.
 Each story follows the format described in the Story Decomposition section.
 ```
@@ -370,6 +380,8 @@ These apply across all modes.
 **Scope is a feature.** Explicitly stating what's out of scope is as valuable as defining what's in scope. It prevents scope creep and sets expectations.
 
 **Open questions are honest.** If something is genuinely unresolved, say so. Include the tradeoff and a recommendation. Do not hide uncertainty — surface it so it can be discussed.
+
+**Record settled decisions, not just outcomes.** When the design involved meaningful tradeoffs — especially ones surfaced and resolved during the interview — capture them in a *Key Decisions and Rejected Alternatives* section at the end of the PRD. Use a table: **Decision | Chosen | Rejected alternative(s) | Why** (note any fallback worth preserving). This matters because a PRD records the destination but not the path: months later an implementor or AI coding agent reads the document without the original conversation, and — not seeing why an obvious-looking alternative was rejected — quietly re-litigates or reverses a deliberate choice. Writing down the rejected option alongside the reasoning is what prevents that drift. Include only decisions where a reasonable alternative genuinely existed; skip defaults and trivial choices so the section stays high-signal. It is the resolved counterpart to Open Questions (settled choices vs. genuine unknowns), and a PRD with no real forks can omit it.
 
 **Match the project's voice.** If the user has existing PRDs or documentation, match their style, terminology, and level of detail. Read existing artifacts before writing.
 

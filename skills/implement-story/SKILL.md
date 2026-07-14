@@ -1,128 +1,103 @@
 ---
 name: implement-story
 description: >
-  Implements a single user story from a stories.json file, following project conventions and
-  quality checks. Use this skill when the user provides a story ID (e.g. "US-003", "implement
-  story 5", "work on US-012") and wants it implemented end-to-end: read requirements, write
-  code, run tests, update tracking files, and propose a commit message. Trigger on any request
-  that combines a story ID with intent to implement, even if the user phrases it casually (e.g.
-  "do US-007", "let's tackle story 3", "implement the next story", "knock out US-002").
+  Implement one user story from a stories.json file end-to-end. Use when the user names a story ID
+  or asks to implement the next story as a standalone task: read the PRD and prior progress, make
+  focused code changes, verify the acceptance criteria and project quality checks, update tracking,
+  and propose a commit message without committing unless explicitly instructed.
 ---
 
-# implement-story
+# Implement Story
 
-Implement a single user story from the project's task tracking files.
+Implement exactly one story from the project's task-tracking files. This workflow is standalone;
+it does not assume an automatic loop or a particular branching strategy.
 
-## Required inputs
+## Required Inputs
 
-- **Story ID**: provided by the user (e.g. `US-003`). If not provided, ask for it.
-- **`tasks/` directory** (relative to the working directory): must contain:
-  - A PRD file (`.md`) describing the project
-  - `stories.json` with the user stories list
-  - `progress.txt` with the running progress log
+- The exact story ID
+- A `tasks/` directory containing one PRD and `stories.json`
 
-If any of these files are missing or cannot be found, ask the user to provide their location before proceeding.
+Use `tasks/progress.txt` when it exists. If it does not exist, create it when recording the first
+completed story and start it with an empty `## Codebase Patterns` section. If the story ID, PRD, or
+stories file cannot be found unambiguously, stop and ask for the missing input.
 
-## Quality requirements
+## Quality Contract
 
-- ALL quality checks must pass before proposing a commit (typecheck, lint, test — use whatever the project requires)
-- Do NOT propose a commit for broken code
-- Keep changes focused and minimal
-- Follow existing code patterns
-- Work on ONE story per iteration
+- Satisfy every acceptance criterion with observable evidence.
+- Run the project-required typecheck, lint, test, build, or generated-file checks that apply.
+- Keep changes focused on the requested story and follow existing code patterns.
+- Preserve unrelated user changes and never stage or overwrite them.
+- Do not mark a story passing or propose a commit for broken or unverified code.
 
-## Workflow
+## 1. Build Context
 
-### 1. Read the PRD
+1. Read the PRD in full.
+2. Read `tasks/stories.json`, find the exact story, and confirm it is not already passing.
+3. Read `tasks/progress.txt` when present, starting with `Codebase Patterns` and recent related
+   entries.
+4. Read applicable `AGENTS.md` files and inspect the working tree before editing. Note existing
+   changes so they remain untouched.
+5. Read the relevant source and tests before deciding how to implement the story.
 
-Read the PRD file in `tasks/` in full. It is important to understand context, architecture decisions, and constraints before writing any code.
+## 2. Implement The Story
 
-### 2. Read the progress log
+Implement only what the story requires. Do not add speculative features or unrelated refactors.
+Add or update tests when the behavior is testable.
 
-Read `tasks/progress.txt`. Check the **Codebase Patterns** section first — prior iterations have left hard-won knowledge there. Don't repeat their mistakes.
+If implementation exposes an ambiguity or conflict in the requirements, stop and surface it. Do
+not silently reinterpret the PRD or rewrite acceptance criteria to match the code.
 
-### 3. Implement the story
+## 3. Verify Definition Of Done
 
-Find the target story in `tasks/stories.json` by its ID. Read its `description` and `acceptanceCriteria` carefully — these are your definition of done.
+Check every acceptance criterion individually and record the evidence that satisfies it. Then run
+all relevant project quality commands. Fix failures caused by the story and rerun checks until they
+pass.
 
-Read the relevant source files before writing any changes. Understand existing patterns; don't invent conventions.
+If an unrelated pre-existing failure prevents full verification, report it clearly and do not mark
+the story passing without explicit user direction.
 
-Make the changes needed to satisfy all acceptance criteria. Keep changes focused: implement what the story requires, nothing more. Don't refactor surrounding code, add extra features, or improve things that weren't asked for.
+## 4. Preserve Reusable Learnings
 
-### 4. Run quality checks
+Update the nearest applicable `AGENTS.md` only when the work revealed durable guidance such as:
 
-Run whatever checks the project requires (typecheck, lint, test). Fix any failures before continuing.
+- A non-obvious module convention
+- Files that must stay synchronized
+- A reusable testing approach
+- A configuration or environment requirement
 
-### 5. Update AGENTS.md
+Do not add story-specific notes, temporary debugging details, or information already captured in
+the progress log.
 
-Before proposing a commit, check whether your changes contain learnings worth preserving in the `AGENTS.md` file:
+## 5. Update Tracking
 
-1. **Identify directories with edited files** — look at which directories you modified.
-2. **Check the root `AGENTS.md`** — this is where project-wide conventions live by default.
-3. **Add valuable learnings** — if you discovered something future developers/agents should know:
-   - API patterns or conventions specific to that module
-   - Gotchas or non-obvious requirements
-   - Dependencies between files
-   - Testing approaches for that area
-   - Configuration or environment requirements
+Only after implementation and verification succeed:
 
-Examples of good additions:
-- "When modifying X, also update Y to keep them in sync"
-- "This module uses pattern Z for all API calls"
-- "Tests require the dev server running on PORT 3000"
-- "Field names must match the template exactly"
+1. Set the story's `passes` field to `true` and add a one-line `notes` summary in
+   `tasks/stories.json`.
+2. Ensure `tasks/progress.txt` exists with a top-level `## Codebase Patterns` section.
+3. Append—never replace—an entry:
 
-Do **not** add:
-- Story-specific implementation details
-- Temporary debugging notes
-- Information already in `tasks/progress.txt`
-
-Only update `AGENTS.md` if you have genuinely reusable knowledge that would help future work in that directory.
-
-### 6. Propose a commit message
-
-If all quality checks pass, write a commit message and present it to the user. **Do not commit unless explicitly instructed by the user.**
-
-The commit message should:
-- Be detailed enough to understand what changed and why
-- Start with a concise subject line (imperative mood, ≤72 chars)
-- Include a body if the change is non-trivial
-- **Not** include implementation deliberations or decision trails (no "considered X but decided Y", no "initially tried Z")
-
-### 7. Update stories.json
-
-Mark the completed story as passing in `tasks/stories.json`:
-```json
-{
-  "passes": true,
-  "notes": "<one-line summary of what was implemented>"
-}
-```
-
-### 8. Append to progress.txt
-
-Append (never replace) a new entry to `tasks/progress.txt`:
-
-```
+```text
 ## [Date/Time] - [Story ID]
 - What was implemented
 - Files changed
+- Verification commands and results
+- Acceptance-criteria evidence
 - **Learnings for future iterations:**
-  - Patterns discovered (e.g., "this codebase uses X for Y")
-  - Gotchas encountered (e.g., "don't forget to update Z when changing W")
-  - Useful context (e.g., "the evaluation panel is in component X")
+  - Reusable patterns or gotchas, or `None`
 ---
 ```
 
-The learnings section is critical — it helps future iterations avoid repeating mistakes and understand the codebase better.
+Add an item to `Codebase Patterns` only when it is reusable across future stories.
 
-If you discovered a **reusable, general pattern** (not story-specific), also add it to the `## Codebase Patterns` section at the **top** of `tasks/progress.txt`. Create that section if it doesn't exist:
+## 6. Hand Off
 
-```
-## Codebase Patterns
-- Example: Use `sql<number>` template for aggregations
-- Example: Always use `IF NOT EXISTS` for migrations
-- Example: Export types from actions.ts for UI components
-```
+Review the final diff and ensure it contains only implementation and tracking changes for this
+story. Propose a conventional commit message with a concise imperative subject of at most 72
+characters and a body explaining the behavior change when useful.
 
-Only add patterns that are general and reusable, not story-specific details.
+Do not add a story ID, fixed prefix, or custom trailer solely for this workflow. Follow an existing
+repository convention or an explicit user request when one applies. Do not create a commit unless
+the user explicitly instructed you to.
+
+Summarize the change, acceptance evidence, checks run, and any residual risk.

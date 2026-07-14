@@ -1,61 +1,125 @@
 # ai-dev-toolkit
 
-Personal Claude Code and OpenAI Codex configuration and skills.
+Personal Codex skills for moving from product requirements to reviewed implementation.
 
-The `templates/AGENTS.md` file contains global coding preferences and tooling rules that apply across all projects. `templates/CLAUDE.md` is setup as a symbolic link for Claude Code.
+The repository is also a Codex plugin. Its manifest is `.codex-plugin/plugin.json`; Codex discovers
+the bundled skills under `skills/` and the lifecycle hook under `hooks/hooks.json`.
 
 ## Skills
 
-| Skill | Description |
-|-------|-------------|
-| `prd` | Create Product Requirements Documents (comprehensive or focused) and decompose them into a `stories.json` file of implementation-ready user stories. |
-| `implement-story` | Implement a single user story end-to-end: reads requirements from `tasks/stories.json`, writes code, runs quality checks, and proposes a commit unless the user explicitly asks it to commit. |
-| `story-loop` | Thin wrapper around `implement-story` for interactive, hook-driven story-by-story execution. It commits on success and ends with a story-ID-aware completion promise consumed by the Stop hook. |
-| `sprint-checkpoint` | Review a completed sprint against the PRD, stories, progress log, and relevant code, then write `tasks/checkpoint-sprint-N.md` for operator review. |
-| `doc-coauthoring` | Structured three-stage workflow for co-authoring docs (context gathering → refinement → reader testing). Copied as-is from [Anthropic's skills repo](https://github.com/anthropics/skills). |
+| Skill | Purpose |
+|---|---|
+| `prd` | Create comprehensive or focused PRDs and decompose them into sprint-aware stories. |
+| `implement-story` | Implement and verify one story without automatic continuation or commits. |
+| `story-loop` | Explicitly implement, track, and commit one story, then signal the Stop hook. |
+| `code-review` | Review product alignment and implementation quality, then stop for a human. |
+| `doc-coauthoring` | Co-author documentation through context, refinement, and reader testing. |
 
-## How It Fits Together
+`templates/AGENTS.md` contains personal coding preferences that can be installed separately as
+global guidance. `templates/CLAUDE.md` is the corresponding Claude Code symlink template.
 
-The core loop is: define the work with `prd`, execute one story at a time with `story-loop`, let
-the repo-local Stop hook decide whether to continue or pause at a sprint boundary, and use
-`sprint-checkpoint` to produce an operator-facing review before resuming. `doc-coauthoring` sits
-alongside that loop as the documentation lane for keeping README files, PRDs, and related docs in
-good shape.
+## Story Workflow
 
 ```mermaid
 flowchart TD
-    A["`prd`"] --> B["PRD + `tasks/stories.json`"]
-    B --> C["`story-loop`"]
-    C --> D["`implement-story`"]
-    D --> E["Code changes + `tasks/progress.txt` + story status"]
-    E --> F["Completion promise"]
-    F --> G["Stop hook<br/>`.codex/hooks/stop_continue.py`"]
-    G -->|Same sprint| C
-    G -->|Sprint boundary| H["`sprint-checkpoint`"]
-    H --> I["`tasks/checkpoint-sprint-N.md`"]
-    I --> J["Operator decision"]
-    J -->|Resume| C
-    K["`doc-coauthoring`"] --> L["README / PRDs / docs"]
+    A["`prd`"] --> B["PRD + sprint-aware `stories.json`"]
+    B --> C[" `implement-story` or explicit `story-loop`"]
+    C --> D["Implement and verify one story"]
+    D --> E["Update tracking + focused commit"]
+    E --> F["Versioned completion promise"]
+    F --> G["Plugin Stop hook"]
+    G -->|"Same sprint"| C
+    G -->|"Sprint complete"| H["`code-review`"]
+    H --> I["Product drift + code findings"]
+    I --> J["Human review and explicit resume"]
 ```
 
-## Interactive Story Loop
-
-This is my own sprint-aware take on the "Ralph Wiggum" loop.
-
-For repos that include the repo-local Codex hook scaffolding:
-
-- `.codex/hooks.json`
-- `.codex/hooks/stop_continue.py`
-
-Start the loop manually with the first story:
+Start the loop explicitly:
 
 ```text
 $story-loop US-001
 ```
 
-The `story-loop` skill wraps `implement-story`, commits successful work, and ends with a completion
-promise that includes the completed story ID. When that promise appears, the hook reads
-`tasks/stories.json`, decides whether the completed story finished its sprint, and then either
-continues with another `$story-loop ...` prompt or pauses with `$sprint-checkpoint ...`.
+`story-loop` is explicit-only because it authorizes a commit and automatic continuation. It checks
+that the current branch matches `stories.json`, but it never creates or switches branches. Each
+successful iteration ends with a versioned `STORY_COMPLETE` promise. The Stop hook validates that
+the named story exists and is passing, then either selects the next unfinished story in the same
+sprint or invokes `$code-review`.
 
-Today this repo keeps the hook scaffolding outside a plugin because Codex plugins do not yet document plugin-level hook definitions. Once Codex plugins support hooks, this setup can be packaged end-to-end and the remaining manual repo-local hook wiring can disappear; `story-loop` is already the thin skill layer that would fit naturally into that packaged version.
+Code review is mandatory after every sprint, including the final sprint. It reports prioritized
+implementation findings and a separate mandatory product-alignment assessment, emits no completion
+promise, and stops. Resume only after the human has inspected the findings and reviewed diff.
+
+## Git Policy
+
+Use one feature branch for the complete PRD. `stories.json` records a suggested `branchName`; the
+default naming fallback is `feature/<kebab-case-slug>`, without an agent-specific prefix. The user
+creates or selects that branch separately before starting the loop.
+
+The loop treats `branchName` as an assertion: it stops if the current branch does not match and never
+manages branches. A first run may include newly generated planning artifacts under `tasks/` in the
+first story commit; any unrelated dirty path stops the loop.
+
+Each story produces one focused commit with a conventional, repository-appropriate message. The
+harness adds no story prefix, ID, or trailer:
+
+```text
+Add configurable retry behavior
+
+Explain the user-visible behavior when useful.
+```
+
+Story-to-commit traceability comes from `stories.json`, `progress.txt`, and one-story-per-commit
+ordering. Squash-merge remains an option when the public/default-branch history should contain one
+clean feature commit, but it is no longer needed to hide harness-specific metadata.
+
+## Evolving Requirements
+
+The product-alignment review may propose PRD or story changes but never applies them automatically.
+The loop always stops at that point. If the human accepts a change in direction:
+
+1. Explicitly invoke `$prd` (or edit the planning artifacts directly) to update the PRD and record
+   the material decision.
+2. Revise only unfinished stories and recalculate their order and sprint assignment.
+3. Preserve completed stories as historical records; add a corrective story when shipped behavior
+   must change.
+4. Explicitly resume `$story-loop` after accepting the revised plan.
+
+This revision workflow is intentionally outside the PRD skill's normal generation/decomposition
+path. You can also invoke `$code-review` manually during a sprint for an early drift check. The
+custom review follows the same visible principles as Codex's native `/review`—an explicit diff
+scope, concise actionable findings, and no working-tree changes—while adding PRD alignment and the
+sprint checkpoint.
+
+## Hook Portability
+
+The plugin hook runs:
+
+```text
+uv run --script "${PLUGIN_ROOT}/hooks/stop_continue.py"
+```
+
+`${PLUGIN_ROOT}` works from the installed plugin location, `--script` keeps the hook independent of
+the target project's environment, and `uv` provides the same Python entry point on Linux, macOS,
+and Windows. Target repositories do not need to copy repo-local hook files.
+Installed plugin hooks must be reviewed and trusted in Codex before they run.
+
+## Development
+
+Run the hook tests:
+
+```text
+python -m unittest tests.test_stop_continue -v
+```
+
+Validate a skill with the bundled skill creator and PyYAML supplied by `uv`:
+
+```text
+uv run --with pyyaml python <skill-creator>/scripts/quick_validate.py skills/<skill-name>
+```
+
+Validate the plugin with the bundled plugin creator:
+
+```text
+uv run --with pyyaml python <plugin-creator>/scripts/validate_plugin.py .
+```

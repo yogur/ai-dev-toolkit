@@ -10,7 +10,8 @@ from pathlib import Path
 
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-MODULE_PATH = REPO_ROOT / ".codex" / "hooks" / "stop_continue.py"
+MODULE_PATH = REPO_ROOT / "hooks" / "stop_continue.py"
+HOOK_CONFIG_PATH = REPO_ROOT / "hooks" / "hooks.json"
 
 
 def load_stop_continue_module():
@@ -26,252 +27,245 @@ stop_continue = load_stop_continue_module()
 
 
 def init_git_repo(path: Path) -> None:
-    subprocess.run(["git", "init"], cwd=path, check=True, capture_output=True, text=True)
+    subprocess.run(
+        ["git", "init"], cwd=path, check=True, capture_output=True, text=True
+    )
 
 
-def write_stories(repo_root: Path, payload: dict) -> None:
+def write_stories(repo_root: Path, payload: object) -> None:
     tasks_dir = repo_root / "tasks"
     tasks_dir.mkdir(parents=True, exist_ok=True)
-    (tasks_dir / "stories.json").write_text(json.dumps(payload, indent=2) + "\n")
+    (tasks_dir / "stories.json").write_text(
+        json.dumps(payload, indent=2) + "\n", encoding="utf-8"
+    )
 
 
-def read_stories(repo_root: Path) -> dict:
-    return json.loads((repo_root / "tasks" / "stories.json").read_text())
+def completion_message(story_id: str) -> str:
+    return (
+        '<promise>{"protocol":"story-loop/v1","type":"STORY_COMPLETE",'
+        f'"storyId":"{story_id}"}}</promise>'
+    )
 
 
-def mark_story_passed(repo_root: Path, story_id: str) -> None:
-    payload = read_stories(repo_root)
-    stories = payload.get("userStories", payload if isinstance(payload, list) else [])
-    for story in stories:
-        if story.get("id") == story_id:
-            story["passes"] = True
-            break
-    else:
-        raise AssertionError(f"Story {story_id} not found in fixture")
-
-    write_stories(repo_root, payload)
-
-
-def run_hook(repo_root: Path, story_id: str) -> str | None:
+def run_hook(repo_root: Path, message: str) -> dict | None:
     result = subprocess.run(
         [sys.executable, str(MODULE_PATH)],
-        input=json.dumps(
-            {
-                "cwd": str(repo_root),
-                "last_assistant_message": (
-                    f'<promise>{{"type":"STORY_COMPLETE","storyId":"{story_id}"}}</promise>'
-                ),
-            }
-        ),
+        input=json.dumps({"cwd": str(repo_root), "last_assistant_message": message}),
         capture_output=True,
         text=True,
         check=True,
     )
+    return json.loads(result.stdout) if result.stdout.strip() else None
 
-    if not result.stdout.strip():
-        return None
 
-    payload = json.loads(result.stdout)
-    return payload["reason"]
+class HookConfigTests(unittest.TestCase):
+    def test_plugin_hook_uses_portable_uv_command(self) -> None:
+        payload = json.loads(HOOK_CONFIG_PATH.read_text(encoding="utf-8"))
+        command = payload["hooks"]["Stop"][0]["hooks"][0]["command"]
+
+        self.assertEqual(
+            command,
+            'uv run --script "${PLUGIN_ROOT}/hooks/stop_continue.py"',
+        )
+        self.assertNotIn("/usr/bin", command)
 
 
 class StopContinueTests(unittest.TestCase):
     maxDiff = None
 
-    def test_extracts_structured_completion_event(self) -> None:
-        event = stop_continue.extract_completion_event(
-            '<promise>{"type":"STORY_COMPLETE","storyId":"ticket-42"}</promise>'
-        )
+    def test_extracts_versioned_completion_event(self) -> None:
+        event = stop_continue.extract_completion_event(completion_message("ticket-42"))
 
         self.assertEqual(event, stop_continue.CompletionEvent(story_id="ticket-42"))
 
-    def test_accepts_legacy_completion_event_without_story_id(self) -> None:
-        event = stop_continue.extract_completion_event("<promise>STORY_COMPLETE</promise>")
+    def test_rejects_legacy_completion_event(self) -> None:
+        self.assertIsNone(
+            stop_continue.extract_completion_event("<promise>STORY_COMPLETE</promise>")
+        )
 
-        self.assertEqual(event, stop_continue.CompletionEvent(story_id=None))
+    def test_rejects_wrong_protocol(self) -> None:
+        message = (
+            '<promise>{"protocol":"story-loop/v0","type":"STORY_COMPLETE",'
+            '"storyId":"story-a"}</promise>'
+        )
+
+        self.assertIsNone(stop_continue.extract_completion_event(message))
 
     def test_same_sprint_continues_to_next_story_by_priority(self) -> None:
-        self.assert_decision(
-            payload={
-                "sprintConfig": {"checkpointEnabled": True},
+        decision = self.decide(
+            {
                 "userStories": [
                     {"id": "story-c", "passes": False, "sprint": 1, "priority": 3},
                     {"id": "story-a", "passes": True, "sprint": 1, "priority": 1},
                     {"id": "story-b", "passes": False, "sprint": 1, "priority": 2},
-                ],
+                ]
             },
-            completion_event=stop_continue.CompletionEvent(story_id="story-a"),
-            expected_prompt="$story-loop story-b",
+            "story-a",
         )
 
-    def test_last_story_in_sprint_triggers_checkpoint(self) -> None:
-        self.assert_decision(
-            payload={
-                "sprintConfig": {"checkpointEnabled": True},
+        self.assertEqual(
+            decision, stop_continue.ContinueDecision("$story-loop story-b")
+        )
+
+    def test_does_not_jump_to_lower_priority_story_in_another_sprint(self) -> None:
+        decision = self.decide(
+            {
                 "userStories": [
                     {"id": "story-a", "passes": True, "sprint": 1, "priority": 1},
-                    {"id": "story-b", "passes": False, "sprint": 2, "priority": 2},
-                ],
+                    {"id": "story-b", "passes": False, "sprint": 1, "priority": 5},
+                    {"id": "story-c", "passes": False, "sprint": 2, "priority": 2},
+                ]
             },
-            completion_event=stop_continue.CompletionEvent(story_id="story-a"),
-            expected_prompt="$sprint-checkpoint 1",
+            "story-a",
         )
 
-    def test_checkpoint_disabled_falls_through_to_next_story(self) -> None:
-        self.assert_decision(
-            payload={
+        self.assertEqual(
+            decision, stop_continue.ContinueDecision("$story-loop story-b")
+        )
+
+    def test_sprint_boundary_triggers_mandatory_review(self) -> None:
+        decision = self.decide(
+            {
                 "sprintConfig": {"checkpointEnabled": False},
                 "userStories": [
                     {"id": "story-a", "passes": True, "sprint": 1, "priority": 1},
                     {"id": "story-b", "passes": False, "sprint": 2, "priority": 2},
                 ],
             },
-            completion_event=stop_continue.CompletionEvent(story_id="story-a"),
-            expected_prompt="$story-loop story-b",
+            "story-a",
         )
 
-    def test_missing_sprint_fields_keep_continuous_mode(self) -> None:
-        self.assert_decision(
-            payload={
+        self.assertEqual(
+            decision,
+            stop_continue.ContinueDecision(
+                "$code-review Review sprint 1 and stop for human review."
+            ),
+        )
+
+    def test_final_sprint_also_triggers_review(self) -> None:
+        decision = self.decide(
+            {
+                "userStories": [
+                    {"id": "story-a", "passes": True, "sprint": 2, "priority": 1}
+                ]
+            },
+            "story-a",
+        )
+
+        self.assertEqual(
+            decision,
+            stop_continue.ContinueDecision(
+                "$code-review Review sprint 2 and stop for human review."
+            ),
+        )
+
+    def test_unknown_story_stops_instead_of_advancing(self) -> None:
+        decision = self.decide(
+            {
+                "userStories": [
+                    {"id": "story-a", "passes": False, "sprint": 1, "priority": 1}
+                ]
+            },
+            "story-z",
+        )
+
+        self.assertIsInstance(decision, stop_continue.StopDecision)
+        self.assertIn("unknown or duplicate", decision.reason)
+
+    def test_unpassed_completed_story_stops(self) -> None:
+        decision = self.decide(
+            {
+                "userStories": [
+                    {"id": "story-a", "passes": False, "sprint": 1, "priority": 1}
+                ]
+            },
+            "story-a",
+        )
+
+        self.assertEqual(
+            decision,
+            stop_continue.StopDecision(
+                "Story loop stopped: 'story-a' is not marked as passing."
+            ),
+        )
+
+    def test_non_sprinted_flow_remains_continuous(self) -> None:
+        decision = self.decide(
+            {
                 "userStories": [
                     {"id": "story-a", "passes": True, "priority": 1},
                     {"id": "story-b", "passes": False, "priority": 2},
                 ]
             },
-            completion_event=stop_continue.CompletionEvent(story_id="story-a"),
-            expected_prompt="$story-loop story-b",
+            "story-a",
         )
 
-    def test_prepassed_story_in_next_sprint_still_triggers_checkpoint(self) -> None:
-        self.assert_decision(
-            payload={
-                "sprintConfig": {"checkpointEnabled": True},
-                "userStories": [
-                    {"id": "story-a", "passes": True, "sprint": 1, "priority": 1},
-                    {"id": "story-b", "passes": True, "sprint": 2, "priority": 2},
-                    {"id": "story-c", "passes": False, "sprint": 2, "priority": 3},
-                ],
-            },
-            completion_event=stop_continue.CompletionEvent(story_id="story-a"),
-            expected_prompt="$sprint-checkpoint 1",
+        self.assertEqual(
+            decision, stop_continue.ContinueDecision("$story-loop story-b")
         )
 
-    def test_unknown_completed_story_falls_back_to_next_unfinished(self) -> None:
-        self.assert_decision(
-            payload={
-                "sprintConfig": {"checkpointEnabled": True},
-                "userStories": [
-                    {"id": "story-a", "passes": True, "sprint": 1, "priority": 1},
-                    {"id": "story-b", "passes": False, "sprint": 2, "priority": 2},
-                ],
-            },
-            completion_event=stop_continue.CompletionEvent(story_id="story-z"),
-            expected_prompt="$story-loop story-b",
-        )
-
-    def test_main_uses_structured_promise_to_emit_checkpoint(self) -> None:
-        with tempfile_repo() as repo_root:
-            write_stories(
-                repo_root,
-                {
-                    "sprintConfig": {"checkpointEnabled": True},
-                    "userStories": [
-                        {"id": "story-a", "passes": True, "sprint": 1, "priority": 1},
-                        {"id": "story-b", "passes": False, "sprint": 2, "priority": 2},
-                    ],
-                },
-            )
-
-            result = subprocess.run(
-                [sys.executable, str(MODULE_PATH)],
-                input=json.dumps(
-                    {
-                        "cwd": str(repo_root),
-                        "last_assistant_message": '<promise>{"type":"STORY_COMPLETE","storyId":"story-a"}</promise>',
-                    }
-                ),
-                capture_output=True,
-                text=True,
-                check=True,
-            )
-
-            self.assertEqual(
-                json.loads(result.stdout),
-                {"decision": "block", "reason": "$sprint-checkpoint 1"},
-            )
-            self.assertEqual(result.stderr, "")
-
-    def test_sprinted_flow_crosses_checkpoint_then_manual_resume(self) -> None:
-        with tempfile_repo() as repo_root:
-            write_stories(
-                repo_root,
-                {
-                    "sprintConfig": {"checkpointEnabled": True},
-                    "userStories": [
-                        {"id": "story-a", "passes": False, "sprint": 1, "priority": 1},
-                        {"id": "story-b", "passes": False, "sprint": 2, "priority": 2},
-                        {"id": "story-c", "passes": False, "sprint": 2, "priority": 3},
-                    ],
-                },
-            )
-
-            mark_story_passed(repo_root, "story-a")
-            self.assertEqual(run_hook(repo_root, "story-a"), "$sprint-checkpoint 1")
-
-            # The operator manually resumes into sprint 2 by invoking story-b.
-            mark_story_passed(repo_root, "story-b")
-            self.assertEqual(run_hook(repo_root, "story-b"), "$story-loop story-c")
-
-            mark_story_passed(repo_root, "story-c")
-            self.assertIsNone(run_hook(repo_root, "story-c"))
-
-    def test_non_sprinted_flow_continues_sequentially(self) -> None:
+    def test_main_emits_review_continuation(self) -> None:
         with tempfile_repo() as repo_root:
             write_stories(
                 repo_root,
                 {
                     "userStories": [
-                        {"id": "story-a", "passes": False, "priority": 1},
-                        {"id": "story-b", "passes": False, "priority": 2},
+                        {"id": "story-a", "passes": True, "sprint": 1, "priority": 1}
                     ]
                 },
             )
 
-            mark_story_passed(repo_root, "story-a")
-            self.assertEqual(run_hook(repo_root, "story-a"), "$story-loop story-b")
+            output = run_hook(repo_root, completion_message("story-a"))
 
-            mark_story_passed(repo_root, "story-b")
-            self.assertIsNone(run_hook(repo_root, "story-b"))
+        self.assertEqual(
+            output,
+            {
+                "decision": "block",
+                "reason": "$code-review Review sprint 1 and stop for human review.",
+            },
+        )
 
-    def assert_decision(
-        self,
-        *,
-        payload: dict,
-        completion_event: object,
-        expected_prompt: str,
-    ) -> None:
+    def test_main_surfaces_invalid_story_state(self) -> None:
         with tempfile_repo() as repo_root:
-            write_stories(repo_root, payload)
-            decision = stop_continue.decide_next_action(
-                repo_root / "tasks" / "stories.json",
-                completion_event,
+            write_stories(
+                repo_root,
+                {
+                    "userStories": [
+                        {"id": "story-a", "passes": False, "sprint": 1, "priority": 1}
+                    ]
+                },
             )
 
-            self.assertIsNotNone(decision)
-            assert decision is not None
-            self.assertEqual(decision.prompt, expected_prompt)
+            output = run_hook(repo_root, completion_message("story-a"))
+
+        assert output is not None
+        self.assertFalse(output["continue"])
+        self.assertIn("not marked as passing", output["stopReason"])
+
+    def test_main_ignores_non_completion_messages(self) -> None:
+        with tempfile_repo() as repo_root:
+            output = run_hook(repo_root, "Normal assistant response")
+
+        self.assertIsNone(output)
+
+    def decide(self, payload: object, story_id: str):
+        with tempfile_repo() as repo_root:
+            write_stories(repo_root, payload)
+            return stop_continue.decide_next_action(
+                repo_root / "tasks" / "stories.json",
+                stop_continue.CompletionEvent(story_id=story_id),
+            )
 
 
 class TempRepo:
     def __init__(self) -> None:
-        self._path: Path | None = None
         self._tempdir: tempfile.TemporaryDirectory[str] | None = None
 
     def __enter__(self) -> Path:
         self._tempdir = tempfile.TemporaryDirectory()
-        self._path = Path(self._tempdir.name)
-        init_git_repo(self._path)
-        return self._path
+        path = Path(self._tempdir.name)
+        init_git_repo(path)
+        return path
 
     def __exit__(self, exc_type, exc, tb) -> None:
         assert self._tempdir is not None

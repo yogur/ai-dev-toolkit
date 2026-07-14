@@ -1,0 +1,4 @@
+interface:
+  display_name: "Implement Story"
+  short_description: "Implement and verify one user story"
+  default_prompt: "Use $implement-story to implement US-003 without starting the automatic loop."

@@ -1,0 +1,25 @@
+{
+  "name": "ai-dev-toolkit",
+  "version": "0.1.0",
+  "description": "Personal PRD, story implementation, sprint review, and documentation workflows for Codex.",
+  "author": {
+    "name": "yogur"
+  },
+  "repository": "https://github.com/yogur/ai-dev-toolkit",
+  "license": "MIT",
+  "keywords": ["prd", "user-stories", "code-review", "workflow"],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "AI Dev Toolkit",
+    "shortDescription": "PRD-to-review development workflows",
+    "longDescription": "Create PRDs and sprint-aware stories, implement stories individually or in a hook-driven loop, and stop for mandatory product-alignment and code review at every sprint boundary.",
+    "developerName": "yogur",
+    "category": "Developer Tools",
+    "capabilities": ["Read", "Write", "Git"],
+    "defaultPrompt": [
+      "Draft a PRD and sprint-aware stories.",
+      "Implement the next story in the loop.",
+      "Review the completed sprint."
+    ]
+  }
+}

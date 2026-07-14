@@ -252,18 +252,17 @@ Convert a PRD into a `stories.json` file of outcome-focused implementation slice
 1. Read the PRD thoroughly.
 2. If the PRD already contains user stories (common in focused PRDs), extract and reformat them to match the JSON schema. Refine acceptance criteria for verifiability, adjust sizing, remove unnecessary implementation prescription, and fix dependency ordering.
 3. If the PRD does not contain user stories, analyze the requirements and formulate stories from scratch. Think through the implementation order, identify natural boundaries, assign each story to a sprint, and create stories that are each completable in one iteration without dictating the exact source-level solution.
-4. Write the output to the specified path (default: `stories.json` next to the PRD).
+4. Inspect repository branch naming conventions when a Git repository is available. Otherwise use
+   `feature/<kebab-case-project-or-release>` as the suggested feature branch name.
+5. Write the output to the specified path (default: `stories.json` next to the PRD).
 
 ### Output Format
 
 ```json
 {
   "project": "<project name and version/release>",
-  "branchName": "<suggested git branch name>",
+  "branchName": "<suggested feature branch, for example feature/retry-policy>",
   "description": "<one-line description of what this set of stories delivers>",
-  "sprintConfig": {
-    "checkpointEnabled": true
-  },
   "userStories": [
     {
       "id": "US-001",
@@ -283,7 +282,13 @@ Convert a PRD into a `stories.json` file of outcome-focused implementation slice
 }
 ```
 
-`sprintConfig` is optional. When the PRD or user context does not call for sprint checkpoints, it may be omitted entirely without making the story file invalid. Every generated story should still include the existing fields plus a positive integer `sprint`.
+`branchName` is planning metadata, not an instruction to create or switch branches. Match an
+existing repository convention when one is evident. Otherwise use `feature/<kebab-case-slug>`;
+never add an agent- or tool-specific prefix. Suggest one feature branch for the full set of stories
+unless the user explicitly asks for a different branching model.
+
+Every story must include a positive integer `sprint` so the file remains useful for either manual
+story implementation or an external sprint workflow.
 
 ### Sprint Assignment
 

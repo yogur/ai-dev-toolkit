@@ -5,6 +5,24 @@ Personal Codex skills for moving from product requirements to reviewed implement
 The repository is also a Codex plugin. Its manifest is `.codex-plugin/plugin.json`; Codex discovers
 the bundled skills under `skills/` and the lifecycle hook under `hooks/hooks.json`.
 
+## Install from GitHub
+
+Add this repository as a Codex marketplace:
+
+```powershell
+codex plugin marketplace add yogur/ai-dev-toolkit --ref main
+```
+
+Restart the ChatGPT desktop app, open **Plugins**, choose **AI Dev Toolkit** in the plugin
+directory, and install **AI Dev Toolkit**. Start a new Codex task after installation so its skills
+and hook configuration are loaded.
+
+To pick up a published update later, run:
+
+```powershell
+codex plugin marketplace upgrade yogur-ai-dev-toolkit
+```
+
 ## Skills
 
 | Skill | Purpose |

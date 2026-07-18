@@ -1,11 +1,12 @@
 ---
 name: code-review
 description: >
-  Review a sprint or other explicit Git change scope without modifying source code. Use at mandatory
-  story-loop sprint boundaries, for a mid-sprint product-drift check, or when the user asks to
-  review a branch, commit, range, uncommitted work, or completed stories against the PRD. Report
-  prioritized actionable code findings and a separate product-alignment assessment, then stop for
-  human review.
+  Review implementation and product alignment for work performed through $story-loop or
+  $implement-story, without modifying source code. Use only when one of those workflows requests a
+  sprint, mid-sprint, or completed-story review, or when the user explicitly invokes $code-review
+  by name. Do not trigger for ordinary requests to review a branch, commit, diff, pull request, or
+  uncommitted changes outside these harness workflows. Report prioritized actionable code findings
+  and a separate product-alignment assessment, then stop for human review.
 ---
 
 # Code Review

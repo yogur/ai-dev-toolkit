@@ -263,6 +263,9 @@ Convert a PRD into a `stories.json` file of outcome-focused implementation slice
   "project": "<project name and version/release>",
   "branchName": "<suggested feature branch, for example feature/retry-policy>",
   "description": "<one-line description of what this set of stories delivers>",
+  "sprintConfig": {
+    "reviewMode": "automatic"
+  },
   "userStories": [
     {
       "id": "US-001",
@@ -289,6 +292,10 @@ unless the user explicitly asks for a different branching model.
 
 Every story must include a positive integer `sprint` so the file remains useful for either manual
 story implementation or an external sprint workflow.
+
+`sprintConfig.reviewMode` is workflow metadata for sprint-boundary review: `"automatic"` (the
+default) starts review automatically when a sprint completes; `"manual"` stops after sprint
+completion so the user can start review explicitly. It does not change story decomposition.
 
 ### Sprint Assignment
 

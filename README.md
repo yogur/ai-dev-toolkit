@@ -47,9 +47,11 @@ flowchart TD
     E --> F["Versioned completion promise"]
     F --> G["Plugin Stop hook"]
     G -->|"Same sprint"| C
-    G -->|"Sprint complete"| H["`code-review`"]
-    H --> I["Product drift + code findings"]
-    I --> J["Human review and explicit resume"]
+    G -->|"Automatic review"| H["Separate reviewer subagent"]
+    G -->|"Manual review"| K["Stop for human review"]
+    H --> I["`code-review`"]
+    I --> J["Product drift + code findings"]
+    J --> K["Human review and explicit resume"]
 ```
 
 Start the loop explicitly:
@@ -62,11 +64,32 @@ $story-loop US-001
 that the current branch matches `stories.json`, but it never creates or switches branches. Each
 successful iteration ends with a versioned `STORY_COMPLETE` promise. The Stop hook validates that
 the named story exists and is passing, then either selects the next unfinished story in the same
-sprint or invokes `$code-review`.
+sprint or directs Codex to spawn a separate reviewer subagent. That agent invokes
+`$code-review`; the implementation agent must not review its own sprint.
 
 Code review is mandatory after every sprint, including the final sprint. It reports prioritized
 implementation findings and a separate mandatory product-alignment assessment, emits no completion
 promise, and stops. Resume only after the human has inspected the findings and reviewed diff.
+
+### Review Configuration
+
+`tasks/stories.json` controls the sprint-boundary behavior. Omit `sprintConfig.reviewMode` or set it
+to `"automatic"` to delegate the review to a separate subagent:
+
+```json
+{
+  "sprintConfig": { "reviewMode": "automatic" }
+}
+```
+
+Set it to `"manual"` to stop after the completed sprint. Invoke `$code-review` yourself, then
+explicitly resume `$story-loop` with the next story ID:
+
+```json
+{
+  "sprintConfig": { "reviewMode": "manual" }
+}
+```
 
 ## Git Policy
 

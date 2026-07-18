@@ -9,6 +9,8 @@ from pathlib import Path
 from typing import Any, Union
 
 STORIES_PATH = Path("tasks/stories.json")
+AUTOMATIC_REVIEW_MODE = "automatic"
+MANUAL_REVIEW_MODE = "manual"
 PROMISE_PREFIX = "<promise>"
 PROMISE_SUFFIX = "</promise>"
 COMPLETION_TYPE = "STORY_COMPLETE"
@@ -120,6 +122,28 @@ def load_stories_state(stories_path: Path) -> list[StoryState]:
     ]
 
 
+def review_mode(stories_path: Path) -> str:
+    data = json.loads(stories_path.read_text(encoding="utf-8"))
+    if not isinstance(data, dict):
+        return AUTOMATIC_REVIEW_MODE
+
+    sprint_config = data.get("sprintConfig")
+    if sprint_config is None:
+        return AUTOMATIC_REVIEW_MODE
+    if not isinstance(sprint_config, dict):
+        raise ValueError("sprintConfig must be an object.")
+
+    mode = sprint_config.get("reviewMode", AUTOMATIC_REVIEW_MODE)
+    if not isinstance(mode, str) or mode not in {
+        AUTOMATIC_REVIEW_MODE,
+        MANUAL_REVIEW_MODE,
+    }:
+        raise ValueError(
+            'sprintConfig.reviewMode must be either "automatic" or "manual".'
+        )
+    return mode
+
+
 def ordered_stories(stories: list[StoryState]) -> list[StoryState]:
     return sorted(
         stories,
@@ -185,7 +209,12 @@ def build_story_prompt(identifier: str) -> str:
 
 
 def build_review_prompt(sprint: int) -> str:
-    return f"$code-review Review sprint {sprint} and stop for human review."
+    return (
+        f"Sprint {sprint} is complete. Spawn exactly one separate subagent to perform the review. "
+        f"In that subagent, invoke `$code-review` to review sprint {sprint}. The implementation "
+        "agent must not perform the review. Wait for the reviewer, "
+        "return its findings, and stop for human review."
+    )
 
 
 def decide_next_action(
@@ -210,6 +239,11 @@ def decide_next_action(
         next_story = first_unfinished_story(stories, sprint=completed_story.sprint)
         if next_story is not None and next_story.identifier is not None:
             return ContinueDecision(build_story_prompt(next_story.identifier))
+        if review_mode(stories_path) == MANUAL_REVIEW_MODE:
+            return StopDecision(
+                f"Sprint {completed_story.sprint} is complete. Run `$code-review` manually "
+                "when ready, then explicitly resume `$story-loop`."
+            )
         return ContinueDecision(build_review_prompt(completed_story.sprint))
 
     next_story = first_unfinished_story(stories)
@@ -238,7 +272,7 @@ def main() -> int:
 
     try:
         decision = decide_next_action(repo_root / STORIES_PATH, completion_event)
-    except (OSError, UnicodeError, json.JSONDecodeError) as exc:
+    except (OSError, UnicodeError, json.JSONDecodeError, ValueError) as exc:
         decision = StopDecision(
             f"Story loop stopped: could not read stories state: {exc}"
         )

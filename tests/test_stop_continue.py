@@ -126,7 +126,7 @@ class StopContinueTests(unittest.TestCase):
     def test_sprint_boundary_triggers_mandatory_review(self) -> None:
         decision = self.decide(
             {
-                "sprintConfig": {"checkpointEnabled": False},
+                "sprintConfig": {"reviewMode": "automatic"},
                 "userStories": [
                     {"id": "story-a", "passes": True, "sprint": 1, "priority": 1},
                     {"id": "story-b", "passes": False, "sprint": 2, "priority": 2},
@@ -138,7 +138,10 @@ class StopContinueTests(unittest.TestCase):
         self.assertEqual(
             decision,
             stop_continue.ContinueDecision(
-                "$code-review Review sprint 1 and stop for human review."
+                "Sprint 1 is complete. Spawn exactly one separate subagent to perform "
+                "the review. In that subagent, invoke `$code-review` to review sprint 1. "
+                "The implementation agent must not perform the review. Wait for the "
+                "reviewer, return its findings, and stop for human review."
             ),
         )
 
@@ -155,9 +158,50 @@ class StopContinueTests(unittest.TestCase):
         self.assertEqual(
             decision,
             stop_continue.ContinueDecision(
-                "$code-review Review sprint 2 and stop for human review."
+                "Sprint 2 is complete. Spawn exactly one separate subagent to perform "
+                "the review. In that subagent, invoke `$code-review` to review sprint 2. "
+                "The implementation agent must not perform the review. Wait for the "
+                "reviewer, return its findings, and stop for human review."
             ),
         )
+
+    def test_manual_review_mode_stops_at_sprint_boundary(self) -> None:
+        decision = self.decide(
+            {
+                "sprintConfig": {"reviewMode": "manual"},
+                "userStories": [
+                    {"id": "story-a", "passes": True, "sprint": 1, "priority": 1},
+                    {"id": "story-b", "passes": False, "sprint": 2, "priority": 2},
+                ],
+            },
+            "story-a",
+        )
+
+        self.assertEqual(
+            decision,
+            stop_continue.StopDecision(
+                "Sprint 1 is complete. Run `$code-review` manually when ready, then "
+                "explicitly resume `$story-loop`."
+            ),
+        )
+
+    def test_invalid_review_mode_stops_with_configuration_error(self) -> None:
+        with tempfile_repo() as repo_root:
+            write_stories(
+                repo_root,
+                {
+                    "sprintConfig": {"reviewMode": "manul"},
+                    "userStories": [
+                        {"id": "story-a", "passes": True, "sprint": 1, "priority": 1}
+                    ],
+                },
+            )
+
+            output = run_hook(repo_root, completion_message("story-a"))
+
+        assert output is not None
+        self.assertFalse(output["continue"])
+        self.assertIn("must be either", output["stopReason"])
 
     def test_unknown_story_stops_instead_of_advancing(self) -> None:
         decision = self.decide(
@@ -221,7 +265,12 @@ class StopContinueTests(unittest.TestCase):
             output,
             {
                 "decision": "block",
-                "reason": "$code-review Review sprint 1 and stop for human review.",
+                "reason": (
+                    "Sprint 1 is complete. Spawn exactly one separate subagent to perform the "
+                    "review. In that subagent, invoke `$code-review` to review sprint 1. The "
+                    "implementation agent must not perform the review. Wait for the "
+                    "reviewer, return its findings, and stop for human review."
+                ),
             },
         )
 
